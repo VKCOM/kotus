@@ -4,7 +4,6 @@ import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlList
 import com.charleskorn.kaml.YamlMap
 import com.charleskorn.kaml.YamlScalar
-import com.charleskorn.kaml.parseToYamlNode
 import com.charleskorn.kaml.yamlList
 import com.charleskorn.kaml.yamlMap
 import com.vk.kotus.KotusConfigurationImpl
@@ -29,10 +28,10 @@ internal fun Settings.kotusInternal() {
         settings.projectDescriptorRegistry as? DefaultProjectDescriptorRegistry ?: return
 
     val projects = projectDescriptorRegistry.allProjects.sortedWith(ProjectDescriptorComparator())
-    val rootProject = projectDescriptorRegistry.rootProject.apply { children().clear() }
+    val rootProject = projectDescriptorRegistry.rootProject?.apply { children().clear() }
 
     projects.reversed().forEach { project ->
-        if (project.path != rootProject.path) {
+        if (project.path != rootProject?.path) {
             projectDescriptorRegistry.removeProject(project.path)
         }
     }
@@ -124,7 +123,7 @@ private fun Settings.parseConfiguration(path: Property<String>, configurationImp
             "replacing" -> {
                 nodes.yamlList.items.forEach { item ->
                     if (item is YamlMap) {
-                        item.entries.forEach { module, stub ->
+                        item.entries.forEach { (module, stub) ->
                             replacingWithStubModules[ModuleDescriptor(module.content)] = ModuleDescriptor((stub as YamlScalar).content)
                         }
                     } else if (item is YamlScalar) {

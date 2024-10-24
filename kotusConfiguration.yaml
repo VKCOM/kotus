@@ -1,6 +1,6 @@
 focusing:
   - ":modules:one"
 replacing:
-  - ":modules:three": ":modules:three-stub"
-#  or. but don't forget to register stub via kotusIncludeWithStub
+    #  but don't forget to register stub via kotusIncludeWithStub
   - ":modules:three"
+  - ":modules:three": ":modules:three-stub"
