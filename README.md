@@ -9,9 +9,16 @@ The plugin allows to sync only required modules in a Gradle project. Inspired by
 #### Apply in `settings.gradle.kts`:
 ```kotlin
 pluginManagement {
-    dependencyResolutionManagement {
-        repositories {
-            maven("https://jitpack.io")
+    repositories {
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "com.vk.kotus") {
+                useModule("com.github.vkcom:kotus:${requested.version}")
+            }
         }
     }
 }
@@ -38,9 +45,16 @@ extensions.configure<KotusExtension> {
 #### 1. Apply plugin in `settings.gradle.kts`:
 ```kotlin
 pluginManagement {
-    dependencyResolutionManagement {
-        repositories {
-            maven("https://jitpack.io")
+    repositories {
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "com.vk.kotus") {
+                useModule("com.github.vkcom:kotus:${requested.version}")
+            }
         }
     }
 }

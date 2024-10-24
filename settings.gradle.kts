@@ -1,10 +1,17 @@
 pluginManagement {
     includeBuild("./plugin")
 
-    dependencyResolutionManagement {
-        repositories {
-            maven("https://jitpack.io")
-        }
+    repositories {
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+
+    resolutionStrategy {
+//        eachPlugin {
+//            if (requested.id.id == "com.vk.kotus") {
+//                useModule("com.github.vkcom:kotus:${requested.version}")
+//            }
+//        }
     }
 }
 
