@@ -16,7 +16,7 @@ pluginManagement {
 }
 
 plugins {
-    id("com.vk.kotus") version "1.0"
+    id("com.vk.kotus") version "1.1 "
 }
 
 kotus {

@@ -3,6 +3,8 @@ aliases:
   - alias: "kotlin"
     modules:
       - ":modules:three"
+  - alias: "compose"
+    modules: ":modules:three"
 regexes:
   #  always include
   - regex: ".*"

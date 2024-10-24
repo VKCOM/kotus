@@ -24,7 +24,7 @@ pluginManagement {
 }
 
 plugins {
-    id("com.vk.kotus") version "1.0"
+    id("com.vk.kotus") version "1.1"
 }
 
 kotus {
@@ -60,7 +60,7 @@ pluginManagement {
 }
 
 plugins {
-    id("com.vk.kotus") version "1.0"
+    id("com.vk.kotus") version "1.1"
 }
 ```
 
@@ -110,6 +110,8 @@ aliases:
   - alias: "kotlin"
     modules:
       - ":modules:three"
+  - alias: "compose"
+    modules: ":modules:three"
 regexes:
   #  always include
   - regex: ".*"
