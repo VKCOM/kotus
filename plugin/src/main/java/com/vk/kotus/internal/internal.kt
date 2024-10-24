@@ -143,7 +143,7 @@ private fun Settings.searchConfigurationFile(path: Property<String>): File? =
 
 internal fun Settings.applyConfiguration() {
     val configuration = kotusConfiguration
-    if (configuration.isEnabled) {
+    if (configuration.isEnabled && (configuration.focusingModules.isNotEmpty() || configuration.replacingWithStubModules.isNotEmpty())) {
 
         val alreadyIncluded = mutableSetOf(":")
         configureFocusing(alreadyIncluded)
