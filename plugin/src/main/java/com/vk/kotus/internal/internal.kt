@@ -56,8 +56,10 @@ internal fun Settings.kotusInternal() {
             aliasedModules += extension.rulesImpl.aliasedModules
             modulesByRegex += extension.rulesImpl.modulesByRegex
 
-            focusingModules += extension.configurationImpl.focusingModules
-            replacingWithStubModules += extension.configurationImpl.replacingWithStubModules
+            focusEnabled = focusEnabled || extension.configurationImpl.focusEnabled
+            replaceEnabled = replaceEnabled || extension.configurationImpl.replaceEnabled
+            focusModules += extension.configurationImpl.focusModules
+            replaceModules += extension.configurationImpl.replaceModules
         }
     }
 
@@ -113,27 +115,51 @@ private fun Settings.parseConfiguration(path: Property<String>, configurationImp
 
     val focusingModules: MutableSet<ModuleDescriptor> = mutableSetOf()
     val replacingWithStubModules: MutableMap<ModuleDescriptor, ModuleDescriptor?> = mutableMapOf()
+    var focusingEnabled = false
+    var replacingEnabled = false
+
     val yaml = Yaml.default.parseToYamlNode(configurationFile.inputStream()).yamlMap
 
     yaml.entries.forEach { (type, nodes) ->
         when (type.content) {
-            "focusing" -> nodes.yamlList.toStringSet().toModuleDescriptor().let(focusingModules::addAll)
-            "replacing" -> nodes.yamlList.items.forEach { item ->
-                when (item) {
-                    is YamlMap -> item.entries.forEach { (module, stub) ->
-                        replacingWithStubModules[ModuleDescriptor(module.content)] = ModuleDescriptor((stub as YamlScalar).content)
+            "focus" -> {
+                focusingEnabled = nodes.yamlMap.get<YamlScalar>("enabled")?.toBoolean()  == true
+                if (focusingEnabled) {
+                    val modules = when (val modulesNode = nodes.yamlMap.get<YamlNode>("modules")) {
+                        is YamlScalar -> setOf(modulesNode.content)
+                        is YamlList -> modulesNode.toStringSet()
+                        else -> emptySet()
                     }
-
-                    is YamlScalar -> replacingWithStubModules[ModuleDescriptor(item.content)] = null
-
-                    else -> {}
+                    modules.toModuleDescriptor().let(focusingModules::addAll)
                 }
+            }
+            "replace" -> {
+                replacingEnabled = nodes.yamlMap.get<YamlScalar>("enabled")?.toBoolean() == true
+                if (replacingEnabled) {
+                    when (val modulesNode = nodes.yamlMap.get<YamlNode>("modules")) {
+                        is YamlScalar -> replacingWithStubModules[ModuleDescriptor(modulesNode.content)] = null
+                        is YamlList -> modulesNode.items.forEach { item ->
+                            when (item) {
+                                is YamlMap -> item.entries.forEach { (module, stub) ->
+                                    replacingWithStubModules[ModuleDescriptor(module.content)] = ModuleDescriptor((stub as YamlScalar).content)
+                                }
+
+                                is YamlScalar -> replacingWithStubModules[ModuleDescriptor(item.content)] = null
+                                else -> {}
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+
             }
         }
     }
 
-    configurationImpl.focusingModules += focusingModules
-    configurationImpl.replacingWithStubModules += replacingWithStubModules
+    configurationImpl.focusEnabled = configurationImpl.focusEnabled || focusingEnabled
+    configurationImpl.replaceEnabled = configurationImpl.replaceEnabled || replacingEnabled
+    configurationImpl.focusModules += focusingModules
+    configurationImpl.replaceModules += replacingWithStubModules
 
 }
 
@@ -143,7 +169,8 @@ private fun Settings.searchConfigurationFile(path: Property<String>): File? =
 
 internal fun Settings.applyConfiguration() {
     val configuration = kotusConfiguration
-    if (configuration.isEnabled && (configuration.focusingModules.isNotEmpty() || configuration.replacingWithStubModules.isNotEmpty())) {
+
+    if (configuration.isEnabled && (configuration.focusEnabled || configuration.replaceEnabled)) {
 
         val alreadyIncluded = mutableSetOf(":")
         configureFocusing(alreadyIncluded)
@@ -154,27 +181,30 @@ internal fun Settings.applyConfiguration() {
         val realModules = configuration.modulesStubReplacement.values.map { it.module }
         val alwaysInclude = configuration.alwaysInclude.values
         val modules = configuration.modules.values
-
-        (modules + alwaysInclude + realModules)
-            .asSequence()
-            .distinct()
-            .sortedWith(ModulesDescriptorComparator())
-            .forEach(::internalInclude)
+        includeModules(modules + alwaysInclude + realModules)
     }
+}
+
+internal fun Settings.includeModules(modules: List<ModuleDescriptor>) {
+    modules
+        .asSequence()
+        .distinct()
+        .sortedWith(ModulesDescriptorComparator())
+        .forEach(::internalInclude)
 }
 
 private fun Settings.configureReplacing(alreadyIncluded: MutableSet<String>) {
     val configuration = kotusConfiguration
 
-    if (configuration.replacingWithStubModules.isNotEmpty()) {
+    if (configuration.replaceEnabled && configuration.replaceModules.isNotEmpty()) {
         val modulesStack =
-            configuration.replacingWithStubModules.keys.sortedWith(ModulesDescriptorComparator()).toMutableList()
+            configuration.replaceModules.keys.sortedWith(ModulesDescriptorComparator()).toMutableList()
         val usedReplacements = mutableSetOf<ModuleReplacement>()
         while (modulesStack.isNotEmpty()) {
             val module = modulesStack.removeFirst()
 
             for (moduleName in module.name.generateModuleVariants()) {
-                val replacement = configuration.replacingWithStubModules[module] ?: configuration.modulesStubReplacement[moduleName]?.stubModule
+                val replacement = configuration.replaceModules[module] ?: configuration.modulesStubReplacement[moduleName]?.stubModule
                 if (replacement != null && replacement.name !in alreadyIncluded) {
                     internalInclude(replacement)
                     alreadyIncluded += moduleName
@@ -214,9 +244,9 @@ private fun Settings.configureReplacing(alreadyIncluded: MutableSet<String>) {
 private fun Settings.configureFocusing(alreadyIncluded: MutableSet<String>) {
     val configuration = kotusConfiguration
     val modulesDescriptorComparator = ModulesDescriptorComparator()
-    val focusingModules = configuration.focusingModules.sortedWith(modulesDescriptorComparator)
+    val focusingModules = configuration.focusModules.sortedWith(modulesDescriptorComparator)
 
-    if (focusingModules.isNotEmpty() || configuration.alwaysInclude.isNotEmpty()) {
+    if ((configuration.focusEnabled && focusingModules.isNotEmpty()) || configuration.alwaysInclude.isNotEmpty()) {
 
         val modulesStack = focusingModules.toMutableList()
         modulesStack += configuration.alwaysInclude.values

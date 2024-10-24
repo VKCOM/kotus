@@ -1,6 +1,10 @@
-focusing:
-  - ":modules:one"
-replacing:
-    #  but don't forget to register stub via kotusIncludeWithStub
-  - ":modules:three"
-  - ":modules:three": ":modules:three-stub"
+focus:
+  enabled: true
+  modules:
+    - ":modules:one"
+replace:
+  enabled: false
+  modules:
+      #  but don't forget to register stub via kotusIncludeWithStub
+      - ":modules:three"
+      - ":modules:three": ":modules:three-stub"

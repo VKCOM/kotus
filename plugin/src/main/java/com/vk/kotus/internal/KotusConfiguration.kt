@@ -36,6 +36,8 @@ internal class KotusConfiguration(
     val modulesByRegex: MutableList<Pair<String, Set<String>>> = mutableListOf(),
 
     // configuration
-    val focusingModules: MutableSet<ModuleDescriptor> = mutableSetOf(),
-    val replacingWithStubModules: MutableMap<ModuleDescriptor, ModuleDescriptor?> = mutableMapOf(),
+    var focusEnabled: Boolean = false,
+    var replaceEnabled: Boolean = false,
+    val focusModules: MutableSet<ModuleDescriptor> = mutableSetOf(),
+    val replaceModules: MutableMap<ModuleDescriptor, ModuleDescriptor?> = mutableMapOf(),
 )

@@ -16,7 +16,7 @@ pluginManagement {
 }
 
 plugins {
-    id("com.vk.kotus") version "1.1 "
+    id("com.vk.kotus") version "1.2 "
 }
 
 kotus {
@@ -41,8 +41,14 @@ kotus {
     configurationPath.set(rootDir.resolve("kotusConfiguration.yaml").path)
     // Here you can add additional configurations that will be merged with the rules from the file, if it exists
     configuration {
-        focusing(":modules:one") // Which modules you want to sync
-        replacing(":modules:three", ":modules:three-stub") // If you want to replace one module with other
+        focus {
+            enabled = false
+            module(":modules:one") // Which modules you want to sync
+        }
+        replace {
+            enabled = false
+            module(":modules:three", ":modules:three-stub") // If you want to replace one module with other
+        }
     }
 }
 
@@ -62,6 +68,7 @@ include(":modules:three")
 include(":modules:three-stub")
 include(":modules:four")
 include(":modules:five")
+include(":modules:six")
 
 rootProject.name = "kotus"
 

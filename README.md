@@ -24,11 +24,12 @@ pluginManagement {
 }
 
 plugins {
-    id("com.vk.kotus") version "1.1"
+    id("com.vk.kotus") version "1.2"
 }
 
 kotus {
     configuration {
+        focusingEnabled = true
         focusing(":module:name")
     }
 }
@@ -60,7 +61,7 @@ pluginManagement {
 }
 
 plugins {
-    id("com.vk.kotus") version "1.1"
+    id("com.vk.kotus") version "1.2"
 }
 ```
 
@@ -74,7 +75,6 @@ There are two ways to configure the plugin: via the DSL or via yaml configuratio
 extensions.configure<KotusExtension> {
 // since gradle 8.8
 // kotus {
-    enabled.set(true) // true by default
     verbose.set(true) // print logs to stdout. true by default
     manualRun.set(false) // Call kotusPocus at the end of the settings file. false by default
 
@@ -95,9 +95,14 @@ extensions.configure<KotusExtension> {
     configurationPath.set(rootDir.resolve("kotusConfiguration.yaml").path)
     // Here you can add additional configurations that will be merged with the rules from the file, if it exists
     configuration {
-        focusing(":modules:one") // Which modules you want to sync
-        replacing(":modules:three", ":modules:three-stub") // If you want to replace one module with other
-        replacing(":modules:three") // Will use default stub registered via kotusIncludeWithStub
+        focus {
+            enabled = true // false by default
+            module(":modules:one") // Which modules you want to sync
+        }
+        replace {
+            enabled = true // false by default
+            module(":modules:three", ":modules:three-stub") // If you want to replace one module with other
+        }
     }
 }
 ```
@@ -121,12 +126,16 @@ regexes:
 
 `kotusConfiguration.yaml` (Don't forget to add this file to .gitignore)
 ```yaml
-focusing:
-  - ":modules:one"
-replacing:
-  - ":modules:three": ":modules:three-stub"
-  #  or. but don't forget to register default stub via kotusIncludeWithStub  
-  - ":modules:three"
+focus:
+  enabled: true
+  modules:
+    - ":modules:one"
+replace:
+  enabled: true
+  modules:
+    #  but don't forget to register stub via kotusIncludeWithStub
+    - ":modules:three"
+    - ":modules:three": ":modules:three-stub"
 ```
 
 You can choose or use them both, but prefer DSL for these several settings and yaml to other ones:

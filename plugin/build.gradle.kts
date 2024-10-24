@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.vk.kotus"
-version = "1.1"
+version = "1.2"
 
 mavenPublishing {
     pomFromGradleProperties()
