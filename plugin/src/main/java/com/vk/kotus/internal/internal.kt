@@ -5,6 +5,7 @@ package com.vk.kotus.internal
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlList
 import com.charleskorn.kaml.YamlMap
+import com.charleskorn.kaml.YamlNode
 import com.charleskorn.kaml.YamlScalar
 import com.charleskorn.kaml.yamlList
 import com.charleskorn.kaml.yamlMap
@@ -78,7 +79,11 @@ private fun Settings.parseRules(path: Property<String>, rulesImpl: KotusRulesImp
         when (type.content) {
             "aliases" -> nodes.yamlList.items.forEach { aliasItem ->
                 val name = aliasItem.yamlMap.get<YamlScalar>("alias")?.content
-                val modules = aliasItem.yamlMap.get<YamlList>("modules").toStringSet()
+                val modules = when (val modulesNode = aliasItem.yamlMap.get<YamlNode>("modules")) {
+                    is YamlScalar -> setOf(modulesNode.content)
+                    is YamlList -> modulesNode.toStringSet()
+                    else -> emptySet()
+                }
 
                 if (!name.isNullOrBlank() && modules.isNotEmpty()) aliasedModules[name] = modules
             }
