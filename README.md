@@ -1,5 +1,7 @@
 # Kotus
 
+[![](https://jitpack.io/v/vkcom/kotus.svg)](https://jitpack.io/#vkcom/kotus)
+
 The plugin allows to sync only required modules in a Gradle project. Inspired by [focus](https://github.com/dropbox/focus), but implemented differently.
 
 ### Quick Start
