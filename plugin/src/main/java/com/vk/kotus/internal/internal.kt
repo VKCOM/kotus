@@ -1,3 +1,5 @@
+@file:Suppress("NestedBlockDepth") // expected
+
 package com.vk.kotus.internal
 
 import com.charleskorn.kaml.Yaml
@@ -62,11 +64,10 @@ internal fun Settings.kotusInternal() {
 }
 
 private fun Settings.parseRules(path: Property<String>, rulesImpl: KotusRulesImpl) {
-    val rulesFile = (path.orNull?.let { File(it) } ?: File(rootDir, "kotusRules.yaml"))
-        .takeIf { it.exists() } ?: run {
-            kotusConfiguration.log { "Can't found kotus rules file" }
-            return
-        }
+    val rulesFile = searchRulesFile(path) ?: run {
+        kotusConfiguration.log { "Can't found kotus rules file" }
+        return
+    }
 
     val aliasedModules: MutableMap<String, Set<String>> = mutableMapOf()
     val modulesByRegex: MutableList<Pair<String, Set<String>>> = mutableListOf()
@@ -75,26 +76,18 @@ private fun Settings.parseRules(path: Property<String>, rulesImpl: KotusRulesImp
 
     yaml.entries.forEach { (type, nodes) ->
         when (type.content) {
-            "aliases" -> {
-                nodes.yamlList.items.forEach { aliasItem ->
-                    val name = aliasItem.yamlMap.get<YamlScalar>("alias")?.content
-                    val modules = aliasItem.yamlMap.get<YamlList>("modules").toStringSet()
+            "aliases" -> nodes.yamlList.items.forEach { aliasItem ->
+                val name = aliasItem.yamlMap.get<YamlScalar>("alias")?.content
+                val modules = aliasItem.yamlMap.get<YamlList>("modules").toStringSet()
 
-                    if (!name.isNullOrBlank() && modules.isNotEmpty()) {
-                        aliasedModules[name] = modules
-                    }
-                }
+                if (!name.isNullOrBlank() && modules.isNotEmpty()) aliasedModules[name] = modules
             }
 
-            "regexes" -> {
-                nodes.yamlList.items.forEach { regexItem ->
-                    val regex = regexItem.yamlMap.get<YamlScalar>("regex")?.content
-                    val modules = regexItem.yamlMap.get<YamlList>("modules").toStringSet()
+            "regexes" -> nodes.yamlList.items.forEach { regexItem ->
+                val regex = regexItem.yamlMap.get<YamlScalar>("regex")?.content
+                val modules = regexItem.yamlMap.get<YamlList>("modules").toStringSet()
 
-                    if (!regex.isNullOrBlank() && modules.isNotEmpty()) {
-                        modulesByRegex += regex to modules
-                    }
-                }
+                if (!regex.isNullOrBlank() && modules.isNotEmpty()) modulesByRegex += regex to modules
             }
         }
     }
@@ -103,9 +96,12 @@ private fun Settings.parseRules(path: Property<String>, rulesImpl: KotusRulesImp
     rulesImpl.modulesByRegex += modulesByRegex
 }
 
+private fun Settings.searchRulesFile(path: Property<String>): File? =
+    (path.orNull?.let { File(it) } ?: File(rootDir, "kotusRules.yaml"))
+        .takeIf { it.exists() }
+
 private fun Settings.parseConfiguration(path: Property<String>, configurationImpl: KotusConfigurationImpl) {
-    val configurationFile = (path.orNull?.let { File(it) } ?: File(rootDir, "kotusConfiguration.yaml"))
-        .takeIf { it.exists() } ?: run {
+    val configurationFile = searchConfigurationFile(path) ?: run {
         kotusConfiguration.log { "Can't found kotus configuration file" }
         return
     }
@@ -116,21 +112,17 @@ private fun Settings.parseConfiguration(path: Property<String>, configurationImp
 
     yaml.entries.forEach { (type, nodes) ->
         when (type.content) {
-            "focusing" -> {
-                focusingModules += nodes.yamlList.toStringSet().toModuleDescriptor()
-            }
-
-            "replacing" -> {
-                nodes.yamlList.items.forEach { item ->
-                    if (item is YamlMap) {
-                        item.entries.forEach { (module, stub) ->
-                            replacingWithStubModules[ModuleDescriptor(module.content)] = ModuleDescriptor((stub as YamlScalar).content)
-                        }
-                    } else if (item is YamlScalar) {
-                        replacingWithStubModules[ModuleDescriptor(item.content)] = null
+            "focusing" -> nodes.yamlList.toStringSet().toModuleDescriptor().let(focusingModules::addAll)
+            "replacing" -> nodes.yamlList.items.forEach { item ->
+                when (item) {
+                    is YamlMap -> item.entries.forEach { (module, stub) ->
+                        replacingWithStubModules[ModuleDescriptor(module.content)] = ModuleDescriptor((stub as YamlScalar).content)
                     }
-                }
 
+                    is YamlScalar -> replacingWithStubModules[ModuleDescriptor(item.content)] = null
+
+                    else -> {}
+                }
             }
         }
     }
@@ -140,79 +132,17 @@ private fun Settings.parseConfiguration(path: Property<String>, configurationImp
 
 }
 
+private fun Settings.searchConfigurationFile(path: Property<String>): File? =
+    (path.orNull?.let { File(it) } ?: File(rootDir, "kotusConfiguration.yaml"))
+        .takeIf { it.exists() }
+
 internal fun Settings.applyConfiguration() {
     val configuration = kotusConfiguration
-    val modulesDescriptorComparator = ModulesDescriptorComparator()
-
     if (configuration.isEnabled) {
 
-        val focusingModules = configuration.focusingModules.sortedWith(modulesDescriptorComparator)
         val alreadyIncluded = mutableSetOf(":")
-
-        if (focusingModules.isNotEmpty() || configuration.alwaysInclude.isNotEmpty()) {
-
-            val modulesStack = focusingModules.toMutableList()
-            modulesStack += configuration.alwaysInclude.values
-
-            while (modulesStack.isNotEmpty()) {
-                val module = modulesStack.removeFirst()
-                if (module.name in alreadyIncluded) continue
-
-                for (moduleName in module.name.generateModuleVariants()) {
-                    val descriptor = configuration.modules[moduleName] ?: configuration.alwaysInclude[moduleName]
-                    if (descriptor != null) {
-                        internalInclude(descriptor)
-                        alreadyIncluded += moduleName
-                        modulesStack += findProject(moduleName)?.projectDependencies(configuration).orEmpty()
-                    }
-                }
-            }
-        }
-
-        if (configuration.replacingWithStubModules.isNotEmpty()) {
-            val modulesStack =
-                configuration.replacingWithStubModules.keys.sortedWith(modulesDescriptorComparator).toMutableList()
-            val usedReplacements = mutableSetOf<ModuleReplacement>()
-            while (modulesStack.isNotEmpty()) {
-                val module = modulesStack.removeFirst()
-
-                for (moduleName in module.name.generateModuleVariants()) {
-                    val replacement = configuration.replacingWithStubModules[module] ?: configuration.modulesStubReplacement[moduleName]?.stubModule
-                    if (replacement != null && replacement.name !in alreadyIncluded) {
-                        internalInclude(replacement)
-                        alreadyIncluded += moduleName
-                        modulesStack += findProject(replacement.name)?.projectDependencies(configuration).orEmpty()
-
-                    }
-
-                    if (module.name !in alreadyIncluded) {
-                        internalInclude(module)
-                        alreadyIncluded += moduleName
-                        modulesStack += findProject(moduleName)?.projectDependencies(configuration).orEmpty()
-                    }
-
-                    if (replacement != null) {
-                        usedReplacements += ModuleReplacement(module, replacement)
-                    }
-                }
-            }
-
-            if (usedReplacements.isNotEmpty()) {
-                gradle.beforeProject {
-                    allprojects {
-                        configurations.all {
-                            resolutionStrategy.dependencySubstitution {
-                                usedReplacements.forEach { replacement ->
-                                    substitute(project(replacement.module.name))
-                                        .using(project(replacement.stubModule.name))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            configuration.log { "Replaced for ${this.rootProject.name} projects count: ${usedReplacements.size}" }
-        }
+        configureFocusing(alreadyIncluded)
+        configureReplacing(alreadyIncluded)
         configuration.log { "Synced for ${this.rootProject.name} projects count: ${alreadyIncluded.size}" }
     } else {
 
@@ -225,6 +155,80 @@ internal fun Settings.applyConfiguration() {
             .distinct()
             .sortedWith(ModulesDescriptorComparator())
             .forEach(::internalInclude)
+    }
+}
+
+private fun Settings.configureReplacing(alreadyIncluded: MutableSet<String>) {
+    val configuration = kotusConfiguration
+
+    if (configuration.replacingWithStubModules.isNotEmpty()) {
+        val modulesStack =
+            configuration.replacingWithStubModules.keys.sortedWith(ModulesDescriptorComparator()).toMutableList()
+        val usedReplacements = mutableSetOf<ModuleReplacement>()
+        while (modulesStack.isNotEmpty()) {
+            val module = modulesStack.removeFirst()
+
+            for (moduleName in module.name.generateModuleVariants()) {
+                val replacement = configuration.replacingWithStubModules[module] ?: configuration.modulesStubReplacement[moduleName]?.stubModule
+                if (replacement != null && replacement.name !in alreadyIncluded) {
+                    internalInclude(replacement)
+                    alreadyIncluded += moduleName
+                    modulesStack += findProject(replacement.name)?.projectDependencies(configuration).orEmpty()
+                }
+
+                if (module.name !in alreadyIncluded) {
+                    internalInclude(module)
+                    alreadyIncluded += moduleName
+                    modulesStack += findProject(moduleName)?.projectDependencies(configuration).orEmpty()
+                }
+
+                if (replacement != null) {
+                    usedReplacements += ModuleReplacement(module, replacement)
+                }
+            }
+        }
+
+        if (usedReplacements.isNotEmpty()) {
+            gradle.beforeProject {
+                allprojects {
+                    configurations.all {
+                        resolutionStrategy.dependencySubstitution {
+                            usedReplacements.forEach { replacement ->
+                                substitute(project(replacement.module.name))
+                                    .using(project(replacement.stubModule.name))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        configuration.log { "Replaced for ${this.rootProject.name} projects count: ${usedReplacements.size}" }
+    }
+}
+
+private fun Settings.configureFocusing(alreadyIncluded: MutableSet<String>) {
+    val configuration = kotusConfiguration
+    val modulesDescriptorComparator = ModulesDescriptorComparator()
+    val focusingModules = configuration.focusingModules.sortedWith(modulesDescriptorComparator)
+
+    if (focusingModules.isNotEmpty() || configuration.alwaysInclude.isNotEmpty()) {
+
+        val modulesStack = focusingModules.toMutableList()
+        modulesStack += configuration.alwaysInclude.values
+
+        while (modulesStack.isNotEmpty()) {
+            val module = modulesStack.removeFirst()
+            if (module.name in alreadyIncluded) continue
+
+            for (moduleName in module.name.generateModuleVariants()) {
+                val descriptor = configuration.modules[moduleName] ?: configuration.alwaysInclude[moduleName]
+                if (descriptor != null) {
+                    internalInclude(descriptor)
+                    alreadyIncluded += moduleName
+                    modulesStack += findProject(moduleName)?.projectDependencies(configuration).orEmpty()
+                }
+            }
+        }
     }
 }
 
