@@ -1,0 +1,10 @@
+aliases:
+  #  if kotlin is used
+  - alias: "kotlin"
+    modules:
+      - ":modules:three"
+regexes:
+  #  always include
+  - regex: ".*"
+    modules:
+      - ":modules:four"
